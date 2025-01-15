@@ -18,10 +18,26 @@
 (do :matrix
 
     (defn str->matrix [s]
-      (mapv (fn [line]
-              (mapv (fn [char] (case char \- 0 (\o \O) 1))
-                    line))
-            (str/split s #"\n")))
+      (let [lines (-> (str/trim s) (str/split #"\n"))]
+        (if-not (apply = (map count lines))
+          (throw (Exception. (str `str->matrix " invalid input string:\n\n" s)))
+          (mapv (fn [line]
+                  (mapv (fn [char]
+                          (case char
+                            \- 0
+                            (\o \O) 1
+                            (throw (Exception. (str `str->matrix " invalid character: " char)))))
+                        line))
+                lines))))
+
+    (defn assert-matrix [m]
+      (when-not (vector? m)
+        (throw (Exception. (str `assert-matrix " not a vector:\n" m))))
+      (when-not (every? (fn [row] (every? (partial contains? #{0 1 nil}) row)) m)
+        (throw (Exception. (str 'assert-matrix " invalid content.\n" m))))
+      (when-not (apply = (map count m))
+        (throw (Exception. (str `assert-matrix " rows should be of equal length.\n" m))))
+      m)
 
     (defn matrix->str [matrix]
       (->> matrix
@@ -79,8 +95,8 @@
       (let [x-partitions (mapv (fn [row]
                                  (vec (partition x-size 1 row)))
                                matrix)]
-        (for [x-offset (range (- x-total-size x-size))
-              y-offset (range (- y-total-size y-size))]
+        (for [x-offset (range (inc (- x-total-size x-size)))
+              y-offset (range (inc (- y-total-size y-size)))]
           (->> x-partitions
                (mapv (fn [partition] (vec (get partition x-offset))))
                (drop y-offset)
@@ -107,8 +123,8 @@
 
   (let [[x-size y-size] (matrix-size matrix)
         ;; precise paddings depending on matrix size
-        [x-pad y-pad] [(Math/round (* edge-overlap-ratio x-size))
-                       (Math/round (* edge-overlap-ratio y-size))]
+        [x-pad y-pad] [(Math/round (float (* edge-overlap-ratio x-size)))
+                       (Math/round (float (* edge-overlap-ratio y-size)))]
         ;; padded radar data
         radar-data (with-nil-padding [x-pad y-pad] radar-data)
 
@@ -119,7 +135,7 @@
                                        (matrix-similarity matrix (:content sub-matrix)))))
                         (sort-by :similarity >)
                         (take-while (fn [{:keys [similarity]}]
-                                      (> similarity (- 1 noise-tolerance)))))]
+                                      (>= similarity (- 1 noise-tolerance)))))]
     ;; remove padding offset from detections positions
     (mapv (fn [x]
             (update x :position
@@ -133,7 +149,7 @@
 
     (update-vals shapes
                  (fn [shape-str]
-                   (detect-matrix {:edge-overlap-ratio edge-overlap-ratio
+                   (detect-matrix {:edge-overlap-ratio (float edge-overlap-ratio)
                                    :noise-tolerance noise-tolerance
                                    :radar-data radar-data
                                    :matrix (str->matrix shape-str)})))))
