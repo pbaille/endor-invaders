@@ -65,27 +65,16 @@
 
           (let [flat-results
                 (mapcat (fn [row1 row2]
-                          (map (fn [a b] (cond (or (nil? a) (nil? b)) nil
+                          (map (fn [a b] (cond (or (nil? a) (nil? b)) 0.5
                                                (= a b) 1
                                                :else 0))
                                row1
                                row2))
                         matrix1
-                        matrix2)
+                        matrix2)]
 
-                {:keys [match-count unknown-count]}
-                (reduce (fn [counts x]
-                          (case x
-                            1 (update counts :match-count inc)
-                            nil (update counts :unknown-count inc)
-                            0 counts))
-                        {:match-count 0
-                         :unknown-count 0}
-                        flat-results)]
-
-            (/ match-count
-               (- (count flat-results)
-                  unknown-count)))))))
+            (/ (reduce + 0 flat-results)
+               (count flat-results)))))))
 
 (defn sub-matrices [[x-size y-size] matrix]
   (let [[x-total-size y-total-size] (matrix-size matrix)]

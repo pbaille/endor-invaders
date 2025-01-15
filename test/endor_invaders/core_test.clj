@@ -267,22 +267,21 @@ o--oo------o-----oo--o-oo------------oo--o------o--o-------------oo----o--------
               partial-m2 (mapv (comp vec butlast) m2)]
           (is (= (i/detect-matrix {:radar-data (matrix-put m [2 0] partial-m1)
                                    :matrix m1
-                                   :noise-tolerance 0.0
+                                   :noise-tolerance (/ 1.5 9)
                                    :edge-overlap-ratio 1/3})
                  [{:content [[nil nil nil]
                              [1 0 1]
                              [1 1 1]]
-                   :similarity 1
+                   :similarity (/ 7.5 9)
                    :position [2 -1]}]))
-
           (is (= (i/detect-matrix {:radar-data (matrix-put m [8 3] partial-m2)
                                    :matrix m2
-                                   :noise-tolerance 0.0
+                                   :noise-tolerance (/ 1.5 9)
                                    :edge-overlap-ratio 1/3})
                  [{:content [[1 0 nil]
                              [0 1 nil]
                              [1 0 nil]]
-                   :similarity 1
+                   :similarity (/ 7.5 9)
                    :position [8 3]}]))))
 
       (testing "noise-tolerance"
