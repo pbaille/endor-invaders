@@ -4,69 +4,81 @@
 
 (do :validation
 
-    (defn square-shape-schema [x-size y-size]
+    (defn square-matrix-schema [x-size y-size]
       (into [:tuple]
             (repeat y-size
                     (into [:tuple] (repeat x-size [:enum 0 1])))))
 
     (comment
-      (m/validate (square-shape-schema 4 4)
+      (m/validate (square-matrix-schema 4 4)
                   [[0 1 1 0] [0 1 1 0] [0 1 1 0] [0 1 1 0]])
-      (m/validate (square-shape-schema 4 4)
+      (m/validate (square-matrix-schema 4 4)
                   [[1 1 0] [1 1 0] [1 1 0] [0 1 0]])))
 
-(do :shape
+(do :matrix
 
-    (defn str->shape [s]
+    (defn str->matrix [s]
       (mapv (fn [line]
               (mapv (fn [char] (case char \- 0 (\o \O) 1))
                     line))
             (str/split s #"\n")))
 
-    (defn shape->str [shape]
-      (->> shape
+    (defn matrix->str [matrix]
+      (->> matrix
            (map (fn [line]
-                  (->> (map (fn [bit] (case bit 0 "-" 1 "o" nil "/"))
+                  (->> (map (fn [bit] (case bit 0 "-" 1 "o" nil "="))
                             line)
                        (apply str))))
            (str/join "\n")))
 
-    (defn shape? [v]
-      (and (apply = (map count v))
-           (every? #{0 1} (flatten v))))
+    (defn matrix-size [matrix]
+      [(count (first matrix))
+       (count matrix)])
 
-    (defn shape-size [v]
-      [(count (first v))
-       (count v)])
+    (defn matrix-similarity [matrix1 matrix2]
 
-    (defn shape-similarity [shape1 shape2]
-      (if (= (shape-size shape1)
-             (shape-size shape2))
-        (let [score (->> (mapv (fn [line1 line2]
-                                 (->> (mapv (fn [a b] (if (= a b) 1 0))
-                                            line1
-                                            line2)
-                                      (reduce +)))
-                               shape1
-                               shape2)
-                         (reduce +))
-              element-count (apply * (shape-size shape1))]
-          (/ score
-             element-count))
-        (throw (Exception. (str `shape-similarity " expects equal size shapes, got:"
-                                "\n\n"
-                                (shape->str shape1)
-                                "\n\n"
-                                (shape->str shape2)))))))
+      (let [size (matrix-size matrix1)]
 
-(defn sub-shapes [[x-size y-size] shape]
-  (let [[x-total-size y-total-size] (shape-size shape)]
+        (if-not (= size (matrix-size matrix2))
+
+          (throw (Exception. (str `matrix-similarity " expects equal size matrices, got:"
+                                  "\n\n"
+                                  (matrix->str matrix1)
+                                  "\n\n"
+                                  (matrix->str matrix2))))
+
+          (let [flat-results
+                (mapcat (fn [row1 row2]
+                          (map (fn [a b] (cond (or (nil? a) (nil? b)) nil
+                                               (= a b) 1
+                                               :else 0))
+                               row1
+                               row2))
+                        matrix1
+                        matrix2)
+
+                {:keys [match-count unknown-count]}
+                (reduce (fn [counts x]
+                          (case x
+                            1 (update counts :match-count inc)
+                            nil (update counts :unknown-count inc)
+                            0 counts))
+                        {:match-count 0
+                         :unknown-count 0}
+                        flat-results)]
+
+            (/ match-count
+               (- (count flat-results)
+                  unknown-count)))))))
+
+(defn sub-matrices [[x-size y-size] matrix]
+  (let [[x-total-size y-total-size] (matrix-size matrix)]
     (if (or (> x-size x-total-size)
             (> y-size y-total-size))
       []
-      (let [x-partitions (mapv (fn [line]
-                                 (vec (partition x-size 1 line)))
-                               shape)]
+      (let [x-partitions (mapv (fn [row]
+                                 (vec (partition x-size 1 row)))
+                               matrix)]
         (for [x-offset (range (- x-total-size x-size))
               y-offset (range (- y-total-size y-size))]
           (->> x-partitions
@@ -77,24 +89,68 @@
                (hash-map :position [x-offset y-offset]
                          :content)))))))
 
-(defn detect-shape [{:keys [radar-data shape noise-tolerance]}]
-  (->> (sub-shapes (shape-size shape) radar-data)
-       (mapv (fn [sub-shape]
-               (assoc sub-shape
-                      :similarity
-                      (shape-similarity shape (:content sub-shape)))))
-       (sort-by :similarity >)
-       (take-while (fn [{:keys [similarity]}]
-                     (> similarity (- 1 noise-tolerance))))))
+(defn with-nil-padding
+  "Add `nil` padding to a the given `matrix`.
+  `x-pad` and `y-pad` are respectively the numbers of columns and rows of the padding."
+  [[x-pad y-pad] matrix]
+  (let [[x-size _y-size] (matrix-size matrix)
+        extra-rows (vec (repeat y-pad (vec (repeat (+ x-size (* 2 x-pad)) nil))))
+        row-padding (repeat x-pad nil)]
+    (vec (concat extra-rows
+                 (map (fn [row]
+                        (vec (concat row-padding row row-padding)))
+                      matrix)
+                 extra-rows))))
+
+(defn detect-matrix
+  [{:keys [radar-data matrix noise-tolerance edge-overlap-ratio]}]
+
+  (let [[x-size y-size] (matrix-size matrix)
+        ;; precise paddings depending on matrix size
+        [x-pad y-pad] [(Math/round (* edge-overlap-ratio x-size))
+                       (Math/round (* edge-overlap-ratio y-size))]
+        ;; padded radar data
+        radar-data (with-nil-padding [x-pad y-pad] radar-data)
+
+        detections (->> (sub-matrices (matrix-size matrix) radar-data)
+                        (mapv (fn [sub-matrix]
+                                (assoc sub-matrix
+                                       :similarity
+                                       (matrix-similarity matrix (:content sub-matrix)))))
+                        (sort-by :similarity >)
+                        (take-while (fn [{:keys [similarity]}]
+                                      (> similarity (- 1 noise-tolerance)))))]
+    ;; remove padding offset from detections positions
+    (mapv (fn [x]
+            (update x :position
+                    (fn [[x y]] [(- x x-pad) (- y y-pad)])))
+          detections)))
 
 (defn detect [radar-sample
-              {:keys [edge-overlapping-treshold noise-tolerance shapes]}]
-  (let [radar-data (str->shape radar-sample)]
+              {:keys [edge-overlap-ratio noise-tolerance shapes]}]
+
+  (let [radar-data (str->matrix radar-sample)]
+
     (update-vals shapes
                  (fn [shape-str]
-                   (detect-shape {:radar-data radar-data
-                                  :shape (str->shape shape-str)
-                                  :noise-tolerance noise-tolerance})))))
+                   (detect-matrix {:edge-overlap-ratio edge-overlap-ratio
+                                   :noise-tolerance noise-tolerance
+                                   :radar-data radar-data
+                                   :matrix (str->matrix shape-str)})))))
+
+(defn print-detections [detections]
+  (mapv (fn [[type results]]
+          (println "DETECTED: " type)
+          (mapv (fn [{:keys [position content similarity]}]
+                  (println
+                   (str "\nat: " position
+                        "\nprob: " (format "%.2f" (float similarity))
+                        "\n::\n"
+                        (matrix->str content)
+                        "\n")))
+                results)
+          (println "------------------------"))
+        detections))
 
 (do :data
 
@@ -171,40 +227,41 @@ o--oo------o-----oo--o-oo------------oo--o------o--o-------------oo----o--------
 -----o----------ooooooooo--------------oo--------------oo-----o-----o-o--o------o----------o----o---"))
 
 (comment
-  (detect radar-sample
-          {:shapes {:invader1 invader1
-                    :invader2 invader2}
-           :noise-tolerance 1/5
-           :edge-overlapping-treshold 1/2}))
+  (-> (detect radar-sample
+              {:shapes {:invader1 invader1
+                        :invader2 invader2}
+               :noise-tolerance 1/4
+               :edge-overlap-ratio 0.3})
+      print-detections))
 
 (comment
   (comment
-      (shape->str (str->shape invader1)))
+    (matrix->str (str->matrix invader1)))
   (comment
-    (shape-similarity
-     (str->shape invader1)
-     (str->shape invader1))
+    (matrix-similarity
+     (str->matrix invader1)
+     (str->matrix invader1))
 
-    (shape-similarity
-     (str->shape invader1)
-     (str->shape invader2)))
+    (matrix-similarity
+     (str->matrix invader1)
+     (str->matrix invader2)))
   (comment
-    (->> (sub-shapes (shape-size (str->shape invader1))
-                     (str->shape radar-sample))
-         (mapv (fn [sub-shape]
-                 (assoc sub-shape :similarity (float (shape-similarity (str->shape invader1)
-                                                                       (:content sub-shape))))))
+    (->> (sub-matrices (matrix-size (str->matrix invader1))
+                       (str->matrix radar-sample))
+         (mapv (fn [sub-matrix]
+                 (assoc sub-matrix :similarity (float (matrix-similarity (str->matrix invader1)
+                                                                         (:content sub-matrix))))))
          (sort-by :similarity >)
          (take 5)
          (map (fn [{:keys [position content]}]
                 (println "\n\n------\nat: " position "\n\n")
-                (println (shape->str content)))))
+                (println (matrix->str content)))))
 
     (mapv (fn [s]
             (println)
             (println s))
-          (mapv shape->str
-                (sub-shapes [5 5]
-                            (str->shape radar-sample)))))
+          (mapv matrix->str
+                (sub-matrices [5 5]
+                              (str->matrix radar-sample)))))
 
-  (str->shape invader1))
+  (str->matrix invader1))
