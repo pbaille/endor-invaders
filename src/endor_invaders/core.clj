@@ -46,41 +46,43 @@
 
 ;; sub-matrix detections ------------------------------------------
 
-(defn detect-matrix
-  [{:keys [radar-data matrix noise-tolerance edge-overlap-ratio]}]
+(defn detect-sub-matrix
+  [{:keys [matrix sub-matrix similarity-treshold]}]
 
-  (let [[x-size y-size] (matrix/size matrix)
-        ;; precise paddings depending on matrix size
-        [x-pad y-pad] [(Math/round (float (* edge-overlap-ratio x-size)))
-                       (Math/round (float (* edge-overlap-ratio y-size)))]
-        ;; padded radar data
-        radar-data (matrix/pad nil [x-pad y-pad] radar-data)
+  (let [uncertainty (- 1.0 similarity-treshold)
 
-        detections (->> (matrix/sub-matrices (matrix/size matrix) radar-data)
-                        (mapv (fn [sub-matrix]
-                                (assoc sub-matrix
+        [x-size y-size :as sub-matrix-size] (matrix/size sub-matrix)
+        ;; precise paddings depending on sub-matrix size
+        [x-pad y-pad] [(Math/round (* 2 uncertainty x-size))
+                       (Math/round (* 2 uncertainty y-size))]
+        ;; padded matrix
+        matrix (matrix/pad nil [x-pad y-pad] matrix)
+
+        detections (->> (matrix/sub-matrices sub-matrix-size matrix)
+                        (mapv (fn [sm]
+                                (assoc sm
                                        :similarity
-                                       (matrix/similarity matrix (:content sub-matrix)))))
+                                       (matrix/similarity sub-matrix (:content sm)))))
                         (sort-by :similarity >)
                         (take-while (fn [{:keys [similarity]}]
-                                      (>= similarity (- 1 noise-tolerance)))))]
+                                      (>= similarity similarity-treshold))))]
     ;; remove padding offset from detections positions
     (mapv (fn [x]
             (update x :position
                     (fn [[x y]] [(- x x-pad) (- y y-pad)])))
           detections)))
 
+
 (defn detect [radar-sample
-              {:keys [edge-overlap-ratio noise-tolerance shapes]}]
+              {:keys [similarity-treshold shapes]}]
 
   (let [radar-data (str->matrix radar-sample)]
 
     (update-vals shapes
                  (fn [shape-str]
-                   (detect-matrix {:edge-overlap-ratio (float edge-overlap-ratio)
-                                   :noise-tolerance noise-tolerance
-                                   :radar-data radar-data
-                                   :matrix (str->matrix shape-str)})))))
+                   (detect-sub-matrix {:matrix radar-data
+                                       :sub-matrix (str->matrix shape-str)
+                                       :similarity-treshold similarity-treshold})))))
 
 (defn print-detections [detections]
   (mapv (fn [[type results]]
