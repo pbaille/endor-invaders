@@ -67,7 +67,7 @@ o-o--o-o")
       (-> (core/detect (slurp filepath)
                        {:shapes {:invader1 invader1
                                  :invader2 invader2}
-                        :similarity-treshold similarity-threshold})
+                        :similarity-threshold similarity-threshold})
           (try (catch Exception e (println "malformed radar data:\n" (.getMessage e))))
           print-detections))
     (-> (malli/explain ARGUMENTS_SCHEMA args)

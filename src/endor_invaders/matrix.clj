@@ -86,9 +86,9 @@
        (reduce into [])))
 
 (defn detect-sub-matrix
-  [{:keys [matrix sub-matrix similarity-treshold]}]
+  [{:keys [matrix sub-matrix similarity-threshold]}]
 
-  (let [uncertainty (- 1.0 similarity-treshold)
+  (let [uncertainty (- 1.0 similarity-threshold)
 
         [x-size y-size :as sub-matrix-size] (size sub-matrix)
         ;; precise paddings depending on sub-matrix size
@@ -104,7 +104,7 @@
                                        (similarity sub-matrix (:content sm)))))
                         (sort-by :similarity >)
                         (take-while (fn [{:keys [similarity]}]
-                                      (>= similarity similarity-treshold))))]
+                                      (>= similarity similarity-threshold))))]
     ;; remove padding offset from detections positions
     (mapv (fn [x]
             (update x :position

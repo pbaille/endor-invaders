@@ -50,12 +50,12 @@
 ;; detection ------------------------------------------
 
 (defn detect
-  "Detect `shapes` in a `radar-sample` accordingly to `similarity-treshold`.
+  "Detect `shapes` in a `radar-sample` accordingly to `similarity-threshold`.
    `radar-sample` is a multiline string of `-` and `o` characters, each line should be of equal length.
    `shapes` is a map of keyword to string (same type of string than radar-sample)
-   `similarity-treshold` is a number between 0 and 1, sensibility of the detection (1 for exact matches only, 0 for paranoid mode)"
+   `similarity-threshold` is a number between 0 and 1, sensibility of the detection (1 for exact matches only, 0 for paranoid mode)"
   [radar-sample
-   {:keys [similarity-treshold shapes]}]
+   {:keys [similarity-threshold shapes]}]
 
   (let [radar-data (str->matrix radar-sample)]
 
@@ -63,4 +63,4 @@
                  (fn [shape-str]
                    (matrix/detect-sub-matrix {:matrix radar-data
                                               :sub-matrix (str->matrix shape-str)
-                                              :similarity-treshold similarity-treshold})))))
+                                              :similarity-threshold similarity-threshold})))))

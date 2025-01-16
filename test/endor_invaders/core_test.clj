@@ -53,7 +53,7 @@
   (testing "on data"
     (is (= (matrix/detect-sub-matrix {:matrix (core/str->matrix data/radar-sample)
                                       :sub-matrix (core/str->matrix data/invader1)
-                                      :similarity-treshold 0.8})
+                                      :similarity-threshold 0.8})
            [{:content [[0 0 1 0 0 0 0 0 1 0 0]
                        [0 0 0 0 0 0 0 1 0 0 0]
                        [0 0 1 1 1 1 0 1 1 0 0]
@@ -88,7 +88,7 @@
     (is (= (core/detect data/radar-sample
                         {:shapes {:invader1 data/invader1
                                   :invader2 data/invader2}
-                         :similarity-treshold 0.8})
+                         :similarity-threshold 0.8})
            {:invader1 [{:content [[0 0 1 0 0 0 0 0 1 0 0]
                                   [0 0 0 0 0 0 0 1 0 0 0]
                                   [0 0 1 1 1 1 0 1 1 0 0]
