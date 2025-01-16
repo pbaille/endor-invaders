@@ -3,7 +3,8 @@
             [endor-invaders.data :as data]
             [endor-invaders.matrix :as matrix]
             [clojure.test :as t :refer [deftest testing is]]
-            [clojure.string :as str]))
+            [clojure.string :as str]
+            [endor-invaders.test-utils :as tu]))
 
 (deftest conversions
   (testing "str->matrix"
@@ -84,6 +85,28 @@
                        [0 0 1 1 1 0 1 1 0 0 1]],
              :similarity 19/22,
              :position [85 12]}]))
+
+    (let [invader (core/str->matrix data/invader1)
+          noisy-invader (update-in invader [3 4] {0 1 1 0})
+          noisy-invader2 (-> invader
+                             (update-in [2 5] {0 1 1 0})
+                             (update-in [6 3] {0 1 1 0}))
+          edge-overlapping-invader (vec (drop 2 invader))
+          radar-sample (-> (tu/mk-matrix 100 100 (constantly 0))
+                           (tu/matrix-put [34 35] invader)
+                           (tu/matrix-put [0 0] noisy-invader)
+                           (tu/matrix-put [23 9] noisy-invader2)
+                           (tu/matrix-put [60 0] edge-overlapping-invader)
+                           (core/matrix->str))]
+      (is (= (core/detect radar-sample
+                          {:shapes {:invader1 data/invader1}
+                           :similarity-threshold 8/10})
+             {:invader1 [{:content invader :similarity 1 :position [34 35]}
+                         {:content noisy-invader :similarity 87/88 :position [0 0]}
+                         {:content noisy-invader2 :similarity 86/88 :position [23 9]}
+                         {:content (vec (concat (repeat 2 (vec (repeat 11 nil)))
+                                                edge-overlapping-invader))
+                          :similarity 0.875 :position [60 -2]}]})))
 
     (is (= (core/detect data/radar-sample
                         {:shapes {:invader1 data/invader1
