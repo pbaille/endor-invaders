@@ -1,8 +1,7 @@
 (ns endor-invaders.cli
   (:require [endor-invaders.core :as core]
             [malli.core :as malli]
-            [malli.error :as me]
-            [clojure.pprint :as pp]))
+            [malli.error :as me]))
 
 (def invader1
   "--o-----o--
@@ -24,7 +23,9 @@ oooooooo
 -o-oo-o-
 o-o--o-o")
 
-(defn print-detections [detections]
+(defn print-detections
+  "Pretty print the output of the `endor-invaders.core/detect` function."
+  [detections]
   (println)
   (mapv (fn [[type results]]
           (when (seq results)
@@ -48,7 +49,7 @@ o-o--o-o")
     {:description "A filepath pointing to some radar data."}
     [:and
      [:or symbol? string?]
-     [:fn {:error/message "filepath should point to a file."}
+     [:fn {:error/message "Should point to a file."}
       #(.exists (java.io.File. (str %)))]]]
 
    [:similarity-threshold
@@ -58,13 +59,17 @@ o-o--o-o")
      [:fn {:error/message "Should be in the 0..1 range"}
       #(<= 0 % 1)]]]])
 
-(defn detect-invaders [{:as args :keys [radar-data similarity-threshold]}]
+(defn detect-invaders
+  "cli entry point"
+  [{:as args :keys [radar-data similarity-threshold]}]
   (if (malli/validate ARGUMENTS_SCHEMA args)
     (let [filepath (str radar-data)]
       (-> (core/detect (slurp filepath)
                        {:shapes {:invader1 invader1
                                  :invader2 invader2}
                         :similarity-treshold similarity-threshold})
+          (try (catch Exception e (println "malformed radar data:\n" (.getMessage e))))
           print-detections))
-    (pp/pprint (-> (malli/explain ARGUMENTS_SCHEMA args)
-                   (me/humanize)))))
+    (-> (malli/explain ARGUMENTS_SCHEMA args)
+        (me/humanize)
+        (println))))

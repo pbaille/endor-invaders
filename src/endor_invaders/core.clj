@@ -2,7 +2,7 @@
   (:require [clojure.string :as str]
             [endor-invaders.matrix :as matrix]))
 
-;; string to matrix conversions ---------------------------------
+;; conversions ---------------------------------
 
 (def CHAR->VAL
   {\- 0
@@ -14,7 +14,10 @@
    1 \o
    nil \=})
 
-(defn str->matrix [s]
+(defn str->matrix
+  "Turn the string `s` to a matrix.
+   `s` should a multiline string of `-` and `o` characters, each line should be of equal length."
+  [s]
   (let [lines (-> (str/trim s) (str/split #"\n"))]
     (if-not (apply = (map count lines))
       (throw (Exception. (str `str->matrix " invalid input string:\n\n" s)))
@@ -44,42 +47,20 @@
                    (apply str))))
        (str/join "\n")))
 
-;; sub-matrix detections ------------------------------------------
+;; detection ------------------------------------------
 
-(defn detect-sub-matrix
-  [{:keys [matrix sub-matrix similarity-treshold]}]
-
-  (let [uncertainty (- 1.0 similarity-treshold)
-
-        [x-size y-size :as sub-matrix-size] (matrix/size sub-matrix)
-        ;; precise paddings depending on sub-matrix size
-        [x-pad y-pad] [(Math/round (* 2 uncertainty x-size))
-                       (Math/round (* 2 uncertainty y-size))]
-        ;; padded matrix
-        matrix (matrix/pad nil [x-pad y-pad] matrix)
-
-        detections (->> (matrix/sub-matrices sub-matrix-size matrix)
-                        (mapv (fn [sm]
-                                (assoc sm
-                                       :similarity
-                                       (matrix/similarity sub-matrix (:content sm)))))
-                        (sort-by :similarity >)
-                        (take-while (fn [{:keys [similarity]}]
-                                      (>= similarity similarity-treshold))))]
-    ;; remove padding offset from detections positions
-    (mapv (fn [x]
-            (update x :position
-                    (fn [[x y]] [(- x x-pad) (- y y-pad)])))
-          detections)))
-
-
-(defn detect [radar-sample
-              {:keys [similarity-treshold shapes]}]
+(defn detect
+  "Detect `shapes` in a `radar-sample` accordingly to `similarity-treshold`.
+   `radar-sample` is a multiline string of `-` and `o` characters, each line should be of equal length.
+   `shapes` is a map of keyword to string (same type of string than radar-sample)
+   `similarity-treshold` is a number between 0 and 1, sensibility of the detection (1 for exact matches only, 0 for paranoid mode)"
+  [radar-sample
+   {:keys [similarity-treshold shapes]}]
 
   (let [radar-data (str->matrix radar-sample)]
 
     (update-vals shapes
                  (fn [shape-str]
-                   (detect-sub-matrix {:matrix radar-data
-                                       :sub-matrix (str->matrix shape-str)
-                                       :similarity-treshold similarity-treshold})))))
+                   (matrix/detect-sub-matrix {:matrix radar-data
+                                              :sub-matrix (str->matrix shape-str)
+                                              :similarity-treshold similarity-treshold})))))

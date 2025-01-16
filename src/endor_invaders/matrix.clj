@@ -1,10 +1,19 @@
 (ns endor-invaders.matrix)
 
-(defn size [matrix]
+(defn size
+  "Return a 2 element vector of the form: `[matrix-width matrix-height]`"
+  [matrix]
   [(count (first matrix))
    (count matrix)])
 
-(defn similarity [matrix1 matrix2]
+(defn similarity
+
+  "Compute the similarity score of two matrices.
+   `matrix1` and `matrix2` have to be of same size, otherwise an error is thrown.
+   The resulting number is in the range 0..1 (1 for equality).
+   `nil` cells are considered unknown and therefore they have 1/2 chance to be similar."
+
+  [matrix1 matrix2]
 
   (let [size1 (size matrix1)]
 
@@ -26,7 +35,12 @@
         (/ (reduce + 0 flat-results)
            (count flat-results))))))
 
-(defn sub-matrices [[x-size y-size] matrix]
+(defn sub-matrices
+  "Produce a seq of maps of the type:
+   `{:position [x y]
+     :content sub-matrix}`
+   where `sub-matrix` is a sub-matrix of size `[x-size y-size]` positioned at `[x y]` in `matrix`."
+  [[x-size y-size] matrix]
   (let [[x-total-size y-total-size] (size matrix)]
     (if (or (> x-size x-total-size)
             (> y-size y-total-size))
@@ -58,11 +72,41 @@
                       matrix)
                  extra-rows))))
 
-(defn cells [m]
+(defn cells
+  "Returns a seq of vectors of the form:
+   `[[y-position x-position] cell-value]`
+   representing `matrix` cells. "
+  [matrix]
   (->> (map (fn [y-idx row]
               (map (fn [x-idx v] [[y-idx x-idx] v])
                    (range)
                    row))
             (range)
-            m)
+            matrix)
        (reduce into [])))
+
+(defn detect-sub-matrix
+  [{:keys [matrix sub-matrix similarity-treshold]}]
+
+  (let [uncertainty (- 1.0 similarity-treshold)
+
+        [x-size y-size :as sub-matrix-size] (size sub-matrix)
+        ;; precise paddings depending on sub-matrix size
+        [x-pad y-pad] [(Math/round (* 2 uncertainty x-size))
+                       (Math/round (* 2 uncertainty y-size))]
+        ;; padded matrix
+        matrix (pad nil [x-pad y-pad] matrix)
+
+        detections (->> (sub-matrices sub-matrix-size matrix)
+                        (mapv (fn [sm]
+                                (assoc sm
+                                       :similarity
+                                       (similarity sub-matrix (:content sm)))))
+                        (sort-by :similarity >)
+                        (take-while (fn [{:keys [similarity]}]
+                                      (>= similarity similarity-treshold))))]
+    ;; remove padding offset from detections positions
+    (mapv (fn [x]
+            (update x :position
+                    (fn [[x y]] [(- x x-pad) (- y y-pad)])))
+          detections)))

@@ -6,6 +6,58 @@ You were shortlisted as one of the great minds to help us track them down.
 Your Clojure application must take a radar sample as an argument and reveal possible locations of those pesky invaders.
 Good luck!
 
+### Solution 
+
+Example usage:
+
+``` shell
+clj -X:detect-invaders :radar-data data/radar-sample.txt :similarity-threshold 0.7
+```
+
+should print something like:
+
+~~~~
+------------------------
+DETECTED:  :invader1
+
+at: [60 13]
+prob: 0.91
+::
+--o-----o--
+-------o---
+--oooo-oo--
+----ooo-oo-
+o--oooooo-o
+o-o-ooooo-o
+o-o-----o-o
+---oo-oo---
+
+more...
+
+------------------------
+DETECTED:  :invader2
+
+at: [42 0]
+prob: 0.88
+::
+---oo---
+--ooo-o-
+--ooooo-
+oo--o-oo
+oo-ooooo
+-----o--
+oo-oo-o-
+o-o--ooo
+
+more...
+~~~~
+
+Tests can be run with:
+
+``` shell
+clj -M:test
+```
+
 ### Requirements:
 - No image detection, this is all about ASCII patterns
 - This is a perfect opportunity to demonstrate your understanding of Immutability, Function Composition, State Management in a functional language as well as Code reusability and Higher-order Functions.
